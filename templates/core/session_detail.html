@@ -40,17 +40,20 @@
       <div class="slot-grid">
         {% for slot in slots %}
           <article class="slot-card slot-{{ slot.status|lower }}">
-            <div class="slot-time"><strong>{{ slot.time|time:'H:i' }}</strong><span>Arrivo {{ slot.expected_arrival_time|time:'H:i' }}</span></div>
-            <span class="pill status-{{ slot.status|lower }}">{{ slot.get_status_display }}</span>
+            <div class="slot-card-head">
+              <strong class="slot-time">{{ slot.time|time:'H:i' }}</strong>
+              <span class="pill status-{{ slot.status|lower }}">{{ slot.get_status_display }}</span>
+            </div>
+            <p class="slot-arrival"><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-12a.75.75 0 0 0-1.5 0v4c0 .23.106.448.287.59l2.5 2a.75.75 0 1 0 .926-1.18l-2.213-1.77V6Z" clip-rule="evenodd"/></svg><span>Arrivo consigliato <strong>{{ slot.expected_arrival_time|time:'H:i' }}</strong></span></p>
             <div class="slot-action">
               {% if slot.status == 'FREE' and session.accepts_bookings %}
                 {% if user_is_donor %}
                   <form method="post" action="{% url 'book_slot' slot.pk %}" onsubmit="return confirm('Confermi la prenotazione dello slot delle {{ slot.time|time:'H:i' }}?');">{% csrf_token %}<button class="btn btn-small" type="submit">Prenota</button></form>
                 {% elif not user.is_authenticated %}
                   <a class="btn btn-small" href="{% url 'login' %}?next={{ request.path }}">Accedi</a>
-                {% else %}<span class="slot-unavailable">Libero</span>
+                {% else %}<span class="slot-unavailable">Prenotabile dai donatori</span>
                 {% endif %}
-              {% else %}<span class="slot-unavailable">Non disponibile</span>{% endif %}
+              {% else %}<span class="slot-unavailable slot-unavailable-status">Non disponibile</span>{% endif %}
             </div>
           </article>
         {% endfor %}

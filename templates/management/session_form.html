@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'create' %}Nuova raccolta{% else %}Modifica raccolta{% endif %} · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Area admin</p>
+    <h1>{% if mode == 'create' %}Nuova giornata di raccolta{% else %}Modifica giornata di raccolta{% endif %}</h1>
+    <p>Compila sede, data, orari, capacità, slot pubblici/riservati, immagine in evidenza e dati informativi.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline" href="{% url 'management_sessions' %}">Torna alle raccolte</a>
+    <a class="btn btn-outline" href="{% url 'management_centers' %}">Gestisci sedi</a>
+    {% if mode == 'update' and session %}<a class="btn btn-outline" href="{% url 'management_appointments' session.pk %}">Prenotazioni</a>{% endif %}
+  </div>
+</div>
+
+<section class="card form-card">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="alert error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid two">
+      {% for field in form %}
+        <div class="form-row {% if field.name in 'public_description public_instructions notes' %}full{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+    <div class="actions form-actions">
+      <button class="btn" type="submit">Salva</button>
+      <button class="btn btn-outline" type="submit" name="generate_slots" value="1">Salva e genera slot mancanti</button>
+      {% if mode == 'update' %}
+        <button class="btn btn-warning" type="submit" name="generate_slots" value="1" onclick="this.form.reset_free.value='1'; return confirm('Riallineare gli slot liberi/bloccati alla configurazione attuale? Gli slot con prenotazioni attive non saranno eliminati.');">Salva e ricalcola slot liberi</button>
+        <input type="hidden" name="reset_free" value="0">
+      {% endif %}
+      <a class="btn btn-outline" href="{% if mode == 'update' and session %}{% url 'management_appointments' session.pk %}{% else %}{% url 'management_sessions' %}{% endif %}">Annulla modifiche</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

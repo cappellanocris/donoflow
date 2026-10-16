@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Gestione footer · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Contenuti del sito</p>
+    <h1>Sezioni del footer</h1>
+    <p class="muted">Modifica titolo, contenuto, visibilità e ordine delle tre sezioni standard.</p>
+  </div>
+</div>
+
+<div class="grid footer-management-grid">
+  {% for section in sections %}
+    <article class="card">
+      <div class="section-head">
+        <div>
+          <span class="badge">{{ section.get_key_display }}</span>
+          <h2>{{ section.title }}</h2>
+        </div>
+        <span class="pill {% if section.is_active %}status-published{% else %}status-cancelled{% endif %}">{% if section.is_active %}Visibile{% else %}Nascosta{% endif %}</span>
+      </div>
+      <div class="footer-preview prose">{{ section.content|safe }}</div>
+      <p class="muted">Ordine: {{ section.sort_order }}</p>
+      <a class="btn btn-small" href="{% url 'management_footer_update' section.pk %}">Modifica sezione</a>
+    </article>
+  {% empty %}
+    <div class="card"><p>Le sezioni standard del footer non sono ancora state create. Esegui le migrazioni del progetto.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

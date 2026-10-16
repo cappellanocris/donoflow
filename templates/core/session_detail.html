@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}Raccolta {{ session.date|date:'d/m/Y' }} · DonoFlow{% endblock %}
+{% block content %}
+<header class="page-header session-detail-header">
+  <div>
+    <a class="back-link" href="{% url 'sessions_list' %}">← Torna alle raccolte</a>
+    <p class="eyebrow">{{ session.date|date:'l d F Y' }}</p>
+    <h1>{{ session.title|default:'Raccolta sangue' }}</h1>
+    <p class="session-detail-subtitle"><strong>{{ session.center.name }}</strong> · {{ session.center.city }} · {{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }}</p>
+  </div>
+  <div class="actions">
+    {% if user_is_donor and session.accepts_waitlist %}
+      <a class="btn btn-outline" href="{% url 'join_waitlist' session.pk %}">Lista d’attesa</a>
+      <a class="btn btn-soft" href="{% url 'confirm_standby' session.pk %}">Disponibilità standby</a>
+    {% endif %}
+  </div>
+</header>
+
+<section class="session-detail-layout">
+  <div class="session-detail-main">
+    {% if session.featured_image or session.public_description or session.public_instructions %}
+      <article class="card session-info-card">
+        {% if session.featured_image %}<img class="session-cover-detail" src="{{ session.featured_image.url }}" alt="{{ session.title|default:'Raccolta sangue' }}">{% endif %}
+        <div class="session-info-copy">
+          {% if session.public_description %}<p class="eyebrow">Informazioni</p><h2>Prima di prenotare</h2><p>{{ session.public_description|linebreaksbr }}</p>{% endif %}
+          {% if session.public_instructions %}<div class="instruction-box"><strong>Indicazioni per i donatori</strong><p>{{ session.public_instructions|linebreaksbr }}</p></div>{% endif %}
+        </div>
+      </article>
+    {% endif %}
+
+    <section class="card slots-card" aria-labelledby="slots-title">
+      <div class="section-head">
+        <div><p class="eyebrow">Disponibilità</p><h2 id="slots-title">Scegli il tuo orario</h2><p class="muted">L’orario di arrivo consigliato è indicato per ogni slot.</p></div>
+        <span class="availability-summary"><strong>{{ session.available_count }}</strong> slot liberi</span>
+      </div>
+      {% if not session.accepts_bookings %}
+        {# Raccolta chiusa, annullata, in bozza o passata: niente pulsanti Prenota #}
+        <div class="list-empty">{% if session.status == 'CANCELLED' %}Questa raccolta è stata annullata.{% elif not session.is_upcoming %}Questa raccolta si è già svolta.{% elif session.status == 'FULL' %}Tutti gli slot sono occupati: puoi entrare in lista d’attesa o dare disponibilità standby.{% else %}Le prenotazioni per questa raccolta non sono aperte.{% endif %}</div>
+      {% endif %}
+      <div class="slot-grid">
+        {% for slot in slots %}
+          <article class="slot-card slot-{{ slot.status|lower }}">
+            <div class="slot-time"><strong>{{ slot.time|time:'H:i' }}</strong><span>Arrivo {{ slot.expected_arrival_time|time:'H:i' }}</span></div>
+            <span class="pill status-{{ slot.status|lower }}">{{ slot.get_status_display }}</span>
+            <div class="slot-action">
+              {% if slot.status == 'FREE' and session.accepts_bookings %}
+                {% if user_is_donor %}
+                  <form method="post" action="{% url 'book_slot' slot.pk %}" onsubmit="return confirm('Confermi la prenotazione dello slot delle {{ slot.time|time:'H:i' }}?');">{% csrf_token %}<button class="btn btn-small" type="submit">Prenota</button></form>
+                {% elif not user.is_authenticated %}
+                  <a class="btn btn-small" href="{% url 'login' %}?next={{ request.path }}">Accedi</a>
+                {% else %}<span class="slot-unavailable">Libero</span>
+                {% endif %}
+              {% else %}<span class="slot-unavailable">Non disponibile</span>{% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="session-detail-aside">
+    <div class="card sticky-summary-card">
+      <p class="eyebrow">Riepilogo raccolta</p>
+      <h2>{{ session.date|date:'d F Y' }}</h2>
+      <dl class="detail-list">
+        <div><dt>Sede</dt><dd>{{ session.center.name }}</dd></div>
+        <div><dt>Indirizzo</dt><dd>{{ session.center.address|default:'Informazione non disponibile' }}<br>{{ session.center.city }}</dd></div>
+        <div><dt>Orario raccolta</dt><dd>{{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }}</dd></div>
+        <div><dt>Disponibilità</dt><dd><strong>{{ session.available_count }}</strong> di {{ session.slots_count }} slot</dd></div>
+        <div><dt>Lista d’attesa</dt><dd>{{ waitlist_count }} persone</dd></div>
+      </dl>
+      {% if not user.is_authenticated %}<a class="btn btn-full" href="{% url 'login' %}?next={{ request.path }}">Accedi per prenotare</a>
+      {% elif user_is_donor and session.accepts_waitlist %}<a class="btn btn-full" href="{% url 'join_waitlist' session.pk %}">Entra in lista d’attesa</a>
+      {% elif user_is_operator %}<a class="btn btn-full" href="{% url 'operator_session' session.pk %}">Apri console di giornata</a>{% endif %}
+      <p class="aside-note">Presentati almeno {{ session.expected_arrival_minutes }} minuti prima dell’orario prenotato.</p>
+    </div>
+  </aside>
+</section>
+{% endblock %}

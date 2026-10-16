@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+{% block title %}Area personale · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Area personale</p>
+    <h1>{{ donor.first_name }} {{ donor.last_name }}</h1>
+    <p class="muted">Gestisci i tuoi dati, controlla la prossima donazione e consulta lo storico email/notifiche.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline" href="{% url 'dashboard' %}">Dashboard</a>
+    <a class="btn" href="{% url 'sessions_list' %}">Nuova prenotazione</a>
+  </div>
+</div>
+
+{% if next_appointment %}
+<section class="card next-personal-card">
+  <div class="section-head">
+    <div>
+      <h2>Prossima donazione prenotata</h2>
+      <p class="muted">Riepilogo operativo della tua prossima prenotazione.</p>
+    </div>
+    <span class="pill status-{{ next_appointment.status|lower }}">{{ next_appointment.get_status_display }}</span>
+  </div>
+  <div class="grid four summary-grid">
+    <div class="summary-box"><span>Data</span><strong>{{ next_appointment.slot.session.date|date:'d/m/Y' }}</strong></div>
+    <div class="summary-box"><span>Ora</span><strong>{{ next_appointment.slot.time|time:'H:i' }}</strong></div>
+    <div class="summary-box"><span>Arrivo richiesto</span><strong>{{ next_appointment.slot.expected_arrival_time|time:'H:i' }}</strong></div>
+    <div class="summary-box"><span>Sede</span><strong>{{ next_appointment.slot.session.center.name }}</strong></div>
+  </div>
+  <p>{{ next_appointment.slot.session.center.address }} · {{ next_appointment.slot.session.center.city }}</p>
+  {% if next_appointment.status == 'CONFIRMED' or next_appointment.status == 'RECONFIRMED' or next_appointment.status == 'TO_RECONFIRM' %}
+    <form method="post" action="{% url 'cancel_appointment' next_appointment.pk %}" onsubmit="return confirm('Confermi annullamento prenotazione?');">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit">Annulla prenotazione</button>
+    </form>
+  {% endif %}
+</section>
+{% else %}
+<section class="card next-personal-card">
+  <h2>Nessuna prossima donazione prenotata</h2>
+  <p class="muted">Puoi scegliere una nuova raccolta disponibile o entrare in lista d’attesa se gli slot sono pieni.</p>
+  <a class="btn" href="{% url 'sessions_list' %}">Vedi raccolte disponibili</a>
+</section>
+{% endif %}
+
+<div class="grid two">
+  <section class="card form-card">
+    <h2>Dati personali</h2>
+    <form method="post" class="form-grid two">
+      {% csrf_token %}
+      {% for field in form %}
+        <div class="form-row {% if field.name == 'email' %}full{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+      {% endfor %}
+      <div class="form-row full form-actions">
+        <button class="btn" type="submit">Salva modifiche</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Storico email</h2>
+    {% for email in email_notifications %}
+      <details class="notification-detail">
+        <summary>
+          <strong>{{ email.template }}</strong>
+          <span class="pill status-{{ email.status|lower }}">{{ email.get_status_display }}</span>
+          <span class="muted">{{ email.sent_at|date:'d/m/Y H:i' }}</span>
+        </summary>
+        <pre>{{ email.message }}</pre>
+      </details>
+    {% empty %}
+      <p>Nessuna email registrata.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<div class="grid two">
+  <section class="card">
+    <h2>Storico prenotazioni</h2>
+    <table>
+      <thead><tr><th>Data</th><th>Ora</th><th>Sede</th><th>Stato</th></tr></thead>
+      <tbody>
+      {% for appointment in past_appointments %}
+        <tr>
+          <td>{{ appointment.slot.session.date|date:'d/m/Y' }}</td>
+          <td>{{ appointment.slot.time|time:'H:i' }}</td>
+          <td>{{ appointment.slot.session.center.name }}</td>
+          <td><span class="pill status-{{ appointment.status|lower }}">{{ appointment.get_status_display }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">Nessuna prenotazione storica.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Altre notifiche</h2>
+    {% for n in all_notifications %}
+      <div class="notification"><strong>{{ n.template }}</strong> · {{ n.sent_at|date:'d/m/Y H:i' }}<br>{{ n.message }}</div>
+    {% empty %}
+      <p>Nessuna notifica.</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

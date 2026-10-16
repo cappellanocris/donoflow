@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard donatore · DonoFlow{% endblock %}
+{% block content %}
+
+{# --- Intestazione con saluto e azioni rapide --- #}
+<div class="page-header">
+  <div class="dash-hero">
+    <span class="dash-avatar" aria-hidden="true">{{ donor.first_name|slice:':1'|upper }}</span>
+    <div>
+      <p class="eyebrow">La tua dashboard</p>
+      <h1>Ciao {{ donor.first_name }}</h1>
+      <p class="muted">Da qui gestisci prenotazioni, standby, offerte urgenti e notifiche.</p>
+    </div>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline" href="{% url 'profile' %}">Area personale</a>
+    <a class="btn" href="{% url 'sessions_list' %}">Nuova prenotazione</a>
+  </div>
+</div>
+
+{# --- Riepilogo rapido --- #}
+<div class="stats stats-4">
+  <div class="stat"><strong>{% if next_appointment %}{{ next_appointment.slot.session.date|date:'d/m' }}{% else %}—{% endif %}</strong><span>Prossima donazione</span></div>
+  <div class="stat"><strong>{{ appointments|length }}</strong><span>Prenotazioni totali</span></div>
+  <div class="stat {% if offers %}stat-warning{% endif %}"><strong>{{ offers|length }}</strong><span>Offerte urgenti</span></div>
+  <div class="stat"><strong>{{ donor.reliability_score }}</strong><span>Affidabilità</span></div>
+</div>
+
+<div class="grid two">
+  {# --- Prenotazioni --- #}
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg></span>
+      <div><h2>Le tue prenotazioni</h2><p class="muted">Storico completo, dalla più recente.</p></div>
+    </div>
+    {% if appointments %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Data</th><th>Ora</th><th>Sede</th><th>Stato</th><th>Azione</th></tr></thead>
+        <tbody>
+        {% for appointment in appointments %}
+          <tr>
+            <td>{{ appointment.slot.session.date|date:'d/m/Y' }}</td>
+            <td><strong>{{ appointment.slot.time|time:'H:i' }}</strong></td>
+            <td>{{ appointment.slot.session.center.name }}<br><small class="muted">{{ appointment.slot.session.center.city }}</small></td>
+            <td><span class="pill status-{{ appointment.status|lower }}">{{ appointment.get_status_display }}</span></td>
+            <td>
+              {% if appointment.status in 'CONFIRMED RECONFIRMED TO_RECONFIRM' %}
+                <form method="post" action="{% url 'cancel_appointment' appointment.pk %}" onsubmit="return confirm('Confermi l’annullamento della prenotazione?');">{% csrf_token %}<button class="btn btn-small btn-soft-danger" type="submit">Annulla</button></form>
+              {% else %}<span class="muted">—</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="list-empty">Non hai ancora prenotazioni. <a href="{% url 'sessions_list' %}">Trova una raccolta</a>.</div>
+    {% endif %}
+  </section>
+
+  {# --- Offerte urgenti standby --- #}
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip chip-red" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg></span>
+      <div><h2>Offerte urgenti</h2><p class="muted">Posti che potrebbero liberarsi a breve.</p></div>
+    </div>
+    {% for offer in offers %}
+      <div class="offer">
+        <strong>{{ offer.slot.session.date|date:'d/m/Y' }} · ore {{ offer.slot.time|time:'H:i' }}</strong>
+        <p>{{ offer.slot.session.center.name }} · arrivo stimato {{ offer.estimated_arrival_minutes }} min · <span class="pill status-{{ offer.status|lower }}">{{ offer.get_status_display }}</span></p>
+        {% if offer.is_expired %}
+          <p class="muted">Tempo di risposta scaduto.</p>
+        {% elif offer.status == 'ACCEPTED' %}
+          <p class="muted">Hai dato la tua disponibilità: attendi la conferma del responsabile.</p>
+        {% elif offer.status == 'SENT' %}
+          <div class="offer-actions">
+            <form method="post" action="{% url 'offer_response' offer.pk 'ACCEPT' %}">{% csrf_token %}<button class="btn btn-small" type="submit">Posso arrivare</button></form>
+            <form method="post" action="{% url 'offer_response' offer.pk 'LATE' %}">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Arrivo più tardi</button></form>
+            <form method="post" action="{% url 'offer_response' offer.pk 'DECLINE' %}">{% csrf_token %}<button class="btn btn-small btn-soft" type="submit">Non posso</button></form>
+          </div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="list-empty">Nessuna offerta urgente attiva in questo momento.</div>
+    {% endfor %}
+  </section>
+</div>
+
+<div class="grid two">
+  {# --- Lista d'attesa --- #}
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h7"/></svg></span>
+      <div><h2>Lista d’attesa</h2><p class="muted">La tua posizione per le raccolte piene.</p></div>
+    </div>
+    {% if waitlist_entries %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Raccolta</th><th>Posizione</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for entry in waitlist_entries %}
+          <tr>
+            <td>{{ entry.session.date|date:'d/m/Y' }} · {{ entry.session.center.name }}</td>
+            <td><strong>#{{ entry.position }}</strong></td>
+            <td><span class="pill status-{{ entry.status|lower }}">{{ entry.get_status_display }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="list-empty">Non sei in lista d’attesa.</div>{% endif %}
+  </section>
+
+  {# --- Standby --- #}
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip chip-amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg></span>
+      <div><h2>Disponibilità standby</h2><p class="muted">Le fasce in cui puoi subentrare.</p></div>
+    </div>
+    {% if standby %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Raccolta</th><th>Fascia</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for item in standby %}
+          <tr>
+            <td>{{ item.session.date|date:'d/m/Y' }} · {{ item.session.center.name }}</td>
+            <td>{{ item.available_from|time:'H:i' }}–{{ item.available_to|time:'H:i' }}<br><small class="muted">arrivo in {{ item.max_arrival_minutes }} min</small></td>
+            <td><span class="pill status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="list-empty">Nessuna disponibilità standby registrata.</div>{% endif %}
+  </section>
+</div>
+
+{# --- Notifiche recenti --- #}
+<section class="card">
+  <div class="card-head">
+    <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"/></svg></span>
+    <div><h2>Ultime notifiche</h2><p class="muted">Comunicazioni simulate dell’ultima attività.</p></div>
+  </div>
+  {% for n in notifications %}
+    <div class="notification"><strong>{{ n.template }}</strong> <time>{{ n.sent_at|date:'d/m/Y H:i' }}</time><br>{{ n.message }}</div>
+  {% empty %}<div class="list-empty">Nessuna notifica.</div>{% endfor %}
+</section>
+{% endblock %}

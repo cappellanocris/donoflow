@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Lista d’attesa · DonoFlow{% endblock %}
+{% block content %}
+<div class="narrow card form-card">
+  <p class="eyebrow">Lista d’attesa</p>
+  <h1>Entra in lista d’attesa</h1>
+  <p class="muted">Se si libera un posto compatibile con le tue preferenze verrai contattato in ordine di priorità.</p>
+
+  {# Riepilogo della raccolta scelta #}
+  <div class="form-session-box">
+    <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg></span>
+    <div>
+      <strong>{{ session.title|default:'Raccolta sangue' }}</strong>
+      <small>{{ session.date|date:'l d F Y' }} · {{ session.center.name }}, {{ session.center.city }}</small>
+    </div>
+  </div>
+
+  <form method="post" class="form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div class="actions form-actions">
+      <button class="btn" type="submit">Inseriscimi in lista</button>
+      <a class="btn btn-outline" href="{{ session.get_absolute_url }}">Torna alla raccolta</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

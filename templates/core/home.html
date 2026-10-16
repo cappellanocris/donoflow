@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}DonoFlow · Prenota la tua donazione{% endblock %}
+{% block content %}
+<section class="home-hero full-bleed" aria-labelledby="home-hero-title">
+  <img class="home-hero-image" src="{% static 'img/hero-donoflow.png' %}" alt="Mani che sostengono un cuore, simbolo della donazione e della solidarietà">
+  <div class="home-hero-shade" aria-hidden="true"></div>
+  <div class="hero-orb hero-orb-blue" aria-hidden="true"></div>
+  <div class="hero-orb hero-orb-red" aria-hidden="true"></div>
+  <div class="container home-hero-content">
+    <div class="home-hero-copy">
+      <div class="hero-kicker"><span class="hero-kicker-dot"></span> Donare è un gesto che unisce</div>
+      <h1 id="home-hero-title">Il tuo appuntamento con la <span>solidarietà</span>, in pochi clic.</h1>
+      <p class="lead">Trova la raccolta più vicina, scegli lo slot disponibile e tieni tutto sotto controllo dalla tua area personale.</p>
+      <div class="actions hero-actions">
+        <a class="btn btn-light" href="{% url 'sessions_list' %}">
+          Cerca una raccolta
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M11.5 4.5a.75.75 0 0 1 1.06 0l5 5a.75.75 0 0 1 0 1.06l-5 5a.75.75 0 1 1-1.06-1.06l3.72-3.72H3a.75.75 0 0 1 0-1.5h12.22L11.5 5.56a.75.75 0 0 1 0-1.06Z"/></svg>
+        </a>
+        <a class="btn btn-hero-outline" href="{% url 'how_it_works' %}">Scopri come funziona</a>
+        {% if not user.is_authenticated %}<a class="hero-text-link" href="{% url 'register' %}">Prima donazione? Registrati <span>→</span></a>{% endif %}
+      </div>
+      <div class="hero-trust-row" aria-label="Vantaggi del servizio">
+        <span><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.236 4.45L7.53 9.882a.75.75 0 0 0-1.06 1.06l2.5 2.5a.75.75 0 0 0 1.137-.089l3.75-5.162Z" clip-rule="evenodd"/></svg> Prenotazione immediata</span>
+        <span><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.236 4.45L7.53 9.882a.75.75 0 0 0-1.06 1.06l2.5 2.5a.75.75 0 0 0 1.137-.089l3.75-5.162Z" clip-rule="evenodd"/></svg> Promemoria e aggiornamenti</span>
+        <span><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.236 4.45L7.53 9.882a.75.75 0 0 0-1.06 1.06l2.5 2.5a.75.75 0 0 0 1.137-.089l3.75-5.162Z" clip-rule="evenodd"/></svg> Gestione trasparente</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="next-donation-strip" aria-labelledby="next-donation-title">
+  <div class="next-donation-heading">
+    <span class="summary-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 2v3m8-3v3M3.5 9h17M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"/></svg>
+    </span>
+    <div><p class="eyebrow">Riepilogo</p><h2 id="next-donation-title">Prossima donazione</h2></div>
+  </div>
+
+  {% if next_appointment %}
+    <div class="next-donation-details">
+      <div class="next-donation-item"><span>Data</span><strong>{{ next_appointment.slot.session.date|date:'d/m/Y' }}</strong></div>
+      <div class="next-donation-item"><span>Orario</span><strong>{{ next_appointment.slot.time|time:'H:i' }}</strong></div>
+      <div class="next-donation-item next-donation-location"><span>Sede</span><strong>{{ next_appointment.slot.session.center.name }}</strong><small>{{ next_appointment.slot.session.center.city }}</small></div>
+      <div class="next-donation-item"><span>Presentati alle</span><strong>{{ next_appointment.slot.expected_arrival_time|time:'H:i' }}</strong></div>
+      <div class="next-donation-item"><span>Stato</span><strong><span class="pill status-confirmed">{{ next_appointment.get_status_display }}</span></strong></div>
+    </div>
+    <div class="next-donation-action"><a class="btn btn-small" href="{% url 'profile' %}">Gestisci</a></div>
+  {% elif next_session %}
+    <div class="next-donation-details">
+      <div class="next-donation-item"><span>Data</span><strong>{{ next_session.date|date:'d/m/Y' }}</strong></div>
+      <div class="next-donation-item"><span>Orario</span><strong>{{ next_session.start_time|time:'H:i' }}–{{ next_session.end_time|time:'H:i' }}</strong></div>
+      <div class="next-donation-item next-donation-location"><span>Sede</span><strong>{{ next_session.center.name }}</strong><small>{{ next_session.center.city }}</small></div>
+      <div class="next-donation-item"><span>Slot liberi</span><strong>{{ next_session.available_count }}</strong></div>
+      <div class="next-donation-item"><span>In attesa</span><strong>{{ next_session.waitlist_entries.count }}</strong></div>
+    </div>
+    <div class="next-donation-action"><a class="btn btn-small" href="{{ next_session.get_absolute_url }}">Prenota ora</a></div>
+  {% else %}
+    <div class="next-donation-empty">
+      <div><strong>Nessuna raccolta programmata</strong><p>Al momento non risultano giornate aperte alla prenotazione.</p></div>
+      {% if user_is_admin %}<a class="btn btn-small" href="{% url 'management_session_create' %}">Crea raccolta</a>{% endif %}
+    </div>
+  {% endif %}
+</section>
+
+<section class="home-section" aria-labelledby="upcoming-sessions-title">
+  <div class="section-title-row">
+    <div>
+      <p class="eyebrow">Calendario</p>
+      <h2 id="upcoming-sessions-title">Le prossime opportunità per donare</h2>
+      <p class="muted">Scegli la giornata più comoda e verifica gli orari disponibili.</p>
+    </div>
+    <a class="section-link" href="{% url 'sessions_list' %}">Vedi tutte le raccolte <span>→</span></a>
+  </div>
+
+  <div class="grid cards session-card-grid">
+    {% for session in sessions %}
+      <article class="card session-card">
+        <div class="session-media">
+          {% if session.featured_image %}<img class="session-cover" src="{{ session.featured_image.url }}" alt="{{ session.title|default:'Raccolta sangue' }}">{% else %}<div class="session-cover-placeholder" aria-hidden="true"><span></span></div>{% endif %}
+          <span class="session-date-badge"><strong>{{ session.date|date:'d' }}</strong><small>{{ session.date|date:'M' }}</small></span>
+        </div>
+        <div class="session-card-body">
+          <div class="session-card-topline"><span class="pill status-{{ session.status|lower }}">{{ session.get_status_display }}</span><span class="availability-dot {% if session.available_count %}available{% endif %}"></span></div>
+          <h3>{{ session.title|default:'Raccolta sangue' }}</h3>
+          <div class="session-meta">
+            <p><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.69 18.933 9.4 18.7C4.9 15.1 2 12.1 2 8.5a8 8 0 1 1 16 0c0 3.6-2.9 6.6-7.4 10.2l-.29.233a.5.5 0 0 1-.62 0ZM10 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" clip-rule="evenodd"/></svg><span><strong>{{ session.center.name }}</strong><small>{{ session.center.city }}</small></span></p>
+            <p><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-12a.75.75 0 0 0-1.5 0v4c0 .23.106.448.287.59l2.5 2a.75.75 0 1 0 .926-1.18l-2.213-1.77V6Z" clip-rule="evenodd"/></svg><span>{{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }}</span></p>
+          </div>
+          {% if session.public_description %}<p class="session-excerpt">{{ session.public_description|truncatechars:105 }}</p>{% endif %}
+          <div class="session-card-footer"><span><strong>{{ session.available_count }}</strong> slot liberi</span><a class="btn btn-small" href="{{ session.get_absolute_url }}">Dettagli <span aria-hidden="true">→</span></a></div>
+        </div>
+      </article>
+    {% empty %}
+      <div class="card empty-state"><div class="empty-state-icon">♡</div><h3>Nessuna raccolta disponibile</h3><p>Nuove giornate verranno pubblicate appena programmate.</p></div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="how-it-works-preview" aria-labelledby="how-preview-title">
+  <div class="how-preview-copy">
+    <p class="eyebrow">Semplice dall’inizio alla fine</p>
+    <h2 id="how-preview-title">Tre passaggi, un gesto che vale tantissimo.</h2>
+    <p>DonoFlow riduce le attese e ti accompagna dalla scelta della raccolta fino al giorno della donazione.</p>
+    <a class="btn btn-outline" href="{% url 'how_it_works' %}">Leggi come funziona</a>
+  </div>
+  <ol class="how-preview-steps">
+    <li><span>01</span><div><strong>Scegli</strong><p>Trova sede, giorno e orario più comodi.</p></div></li>
+    <li><span>02</span><div><strong>Conferma</strong><p>Ricevi il riepilogo e gestisci tutto online.</p></div></li>
+    <li><span>03</span><div><strong>Dona</strong><p>Presentati in sede con qualche minuto di anticipo.</p></div></li>
+  </ol>
+</section>
+{% endblock %}

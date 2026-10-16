@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% block title %}Prenotazioni raccolta · DonoFlow{% endblock %}
+{% block content %}
+<style>
+  .management-appointments .card {
+    overflow: hidden;
+  }
+  .management-appointments .section-head {
+    align-items: flex-start;
+  }
+  .management-appointments .section-head .actions {
+    justify-content: flex-end;
+    flex: 0 0 auto;
+  }
+  .management-appointments .table-scroll {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .management-appointments .appointments-table,
+  .management-appointments .history-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .management-appointments .appointments-table {
+    min-width: 1060px;
+  }
+  .management-appointments .history-table {
+    min-width: 920px;
+  }
+  .management-appointments th,
+  .management-appointments td {
+    vertical-align: top;
+  }
+  .management-appointments .nowrap {
+    white-space: nowrap;
+  }
+  .management-appointments .donor-name {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .management-appointments .email-cell {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .management-appointments .status-cell .pill {
+    max-width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+  }
+  .management-appointments .actions-cell {
+    min-width: 0;
+  }
+  .management-appointments .appointment-actions,
+  .management-appointments .history-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(96px, 1fr));
+    gap: 6px;
+    align-items: stretch;
+  }
+  .management-appointments .history-actions {
+    grid-template-columns: repeat(2, minmax(90px, 1fr));
+  }
+  .management-appointments .appointment-actions form,
+  .management-appointments .history-actions form {
+    display: block;
+    margin: 0;
+  }
+  .management-appointments .appointment-actions .btn,
+  .management-appointments .history-actions .btn {
+    width: 100%;
+    min-height: 32px;
+    padding-left: 8px;
+    padding-right: 8px;
+    white-space: nowrap;
+  }
+  .management-appointments .btn-soft-danger {
+    background: transparent;
+    color: var(--danger);
+    border-color: var(--danger);
+  }
+  .management-appointments .btn-soft-danger:hover {
+    background: #fef3f2;
+    color: var(--danger);
+  }
+  @media (max-width: 980px) {
+    .management-appointments .section-head {
+      flex-direction: column;
+    }
+    .management-appointments .section-head .actions {
+      justify-content: flex-start;
+      width: 100%;
+    }
+  }
+</style>
+
+<div class="management-appointments">
+  <div class="page-header">
+    <div>
+      <p class="eyebrow">Gestione prenotazioni</p>
+      <h1>{{ session.title|default:'Raccolta sangue' }}</h1>
+      <p>{{ session.center.name }} · {{ session.center.city }} · {{ session.date|date:'d/m/Y' }} · {{ session.start_time|time:'H:i' }}-{{ session.end_time|time:'H:i' }}</p>
+    </div>
+    <div class="actions">
+      <a class="btn btn-outline" href="{% url 'management_sessions' %}">Raccolte</a>
+      <a class="btn btn-outline" href="{% url 'management_session_update' session.pk %}">Modifica dati</a>
+      <a class="btn btn-outline" href="{% url 'management_print_appointments' session.pk %}">Elenco stampabile</a>
+      <a class="btn btn-outline" href="{% url 'operator_session' session.pk %}">Dashboard operatore</a>
+    </div>
+  </div>
+
+  {% if session.featured_image or session.public_description or session.public_instructions %}
+  <section class="card session-info-card">
+    {% if session.featured_image %}<img class="session-cover-small" src="{{ session.featured_image.url }}" alt="{{ session.title|default:'Raccolta sangue' }}">{% endif %}
+    <div>
+      {% if session.public_description %}<h2>Dati informativi</h2><p>{{ session.public_description|linebreaksbr }}</p>{% endif %}
+      {% if session.public_instructions %}<h3>Indicazioni donatori</h3><p>{{ session.public_instructions|linebreaksbr }}</p>{% endif %}
+      <p class="muted">Capacità: {{ session.capacity }} · Slot pubblici: {{ session.public_slots }} · Riservati: {{ session.reserved_slots }} · Standby previsti: {{ session.standby_slots }}</p>
+    </div>
+  </section>
+  {% endif %}
+
+  <div class="stats">
+    <div class="stat"><strong>{{ stats.total_slots }}</strong><span>Slot totali</span></div>
+    <div class="stat"><strong>{{ stats.booked }}</strong><span>Prenotazioni attive</span></div>
+    <div class="stat"><strong>{{ stats.free_slots }}</strong><span>Slot liberi online</span></div>
+    <div class="stat"><strong>{{ stats.checked_in }}</strong><span>Check-in</span></div>
+    <div class="stat"><strong>{{ stats.completed }}</strong><span>Donazioni effettuate</span></div>
+    <div class="stat"><strong>{{ stats.cancelled }}</strong><span>Annullate</span></div>
+  </div>
+
+  <section class="card">
+    <div class="section-head">
+      <div>
+        <h2>Elenco slot e prenotazioni</h2>
+        <p class="muted">Da qui l’admin può confermare, annullare, segnare check-in, no-show, donazione effettuata o non effettuata.</p>
+      </div>
+      <div class="actions">
+        <form method="post" action="{% url 'management_generate_slots' session.pk %}">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Genera slot mancanti</button></form>
+        <form method="post" action="{% url 'management_generate_slots' session.pk %}" onsubmit="return confirm('Ricalcolare gli slot liberi/bloccati secondo capacità, slot pubblici e riservati? Gli slot con prenotazioni attive resteranno invariati.');">
+          {% csrf_token %}<input type="hidden" name="reset_free" value="1"><button class="btn btn-small btn-warning" type="submit">Ricalcola liberi</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="appointments-table">
+        <colgroup>
+          <col style="width: 58px;">
+          <col style="width: 70px;">
+          <col style="width: 150px;">
+          <col style="width: 108px;">
+          <col style="width: 215px;">
+          <col style="width: 105px;">
+          <col style="width: 128px;">
+          <col style="width: 250px;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Ora</th>
+            <th>Arrivo</th>
+            <th>Donatore</th>
+            <th>Telefono</th>
+            <th>Email</th>
+            <th>Stato slot</th>
+            <th>Stato prenotazione</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for slot in slots %}
+            {% with appt=slot.active_appointment %}
+            <tr>
+              <td class="nowrap">{{ slot.time|time:'H:i' }}</td>
+              <td class="nowrap">{{ slot.expected_arrival_time|time:'H:i' }}</td>
+              <td>{% if appt %}<strong class="donor-name">{{ appt.donor }}</strong>{% elif slot.status == 'LOCKED' %}<span class="muted">Slot riservato</span>{% else %}<span class="muted">Slot libero</span>{% endif %}</td>
+              <td class="nowrap">{% if appt %}{{ appt.donor.phone|default:'—' }}{% else %}—{% endif %}</td>
+              <td class="email-cell">{% if appt %}{{ appt.donor.email|default:'—' }}{% else %}—{% endif %}</td>
+              <td class="status-cell"><span class="pill status-{{ slot.status|lower }}">{{ slot.get_status_display }}</span></td>
+              <td class="status-cell">{% if appt %}<span class="pill status-{{ appt.status|lower }}">{{ appt.get_status_display }}</span>{% else %}<span class="pill status-free">—</span>{% endif %}</td>
+              <td class="actions-cell">
+                {% if appt %}
+                  <div class="appointment-actions">
+                    <form method="post" action="{% url 'management_confirm_appointment' appt.pk %}">{% csrf_token %}<button class="btn btn-small" type="submit">Conferma</button></form>
+                    <form method="post" action="{% url 'management_checkin_appointment' appt.pk %}">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Check-in</button></form>
+                    <form method="post" action="{% url 'management_complete_appointment' appt.pk %}">{% csrf_token %}<button class="btn btn-small btn-warning" type="submit">Effettuata</button></form>
+                    <form method="post" action="{% url 'management_not_done_appointment' appt.pk %}" onsubmit="return confirm('Registrare la donazione come non effettuata?');">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Non effettuata</button></form>
+                    <form method="post" action="{% url 'management_send_appointment_email' appt.pk %}">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Invia email</button></form>
+                    <form method="post" action="{% url 'management_no_show_appointment' appt.pk %}" onsubmit="return confirm('Segnare il donatore come no-show?');">{% csrf_token %}<button class="btn btn-small btn-danger" type="submit">No-show</button></form>
+                    <form method="post" action="{% url 'management_cancel_appointment' appt.pk %}" onsubmit="return confirm('Annullare questa prenotazione?');">
+                      {% csrf_token %}
+                      <input type="hidden" name="reason" value="Annullamento da gestione admin">
+                      <button class="btn btn-small btn-soft-danger" type="submit">Annulla</button>
+                    </form>
+                  </div>
+                {% else %}
+                  <span class="muted">Nessuna prenotazione</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="8">Nessuno slot generato.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Storico prenotazioni della raccolta</h2>
+    <div class="table-scroll">
+      <table class="history-table">
+        <colgroup>
+          <col style="width: 70px;">
+          <col style="width: 170px;">
+          <col style="width: 115px;">
+          <col style="width: 120px;">
+          <col style="width: 135px;">
+          <col style="width: 135px;">
+          <col style="width: 165px;">
+          <col style="width: 160px;">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Ora</th>
+            <th>Donatore</th>
+            <th>Telefono</th>
+            <th>Stato</th>
+            <th>Creata il</th>
+            <th>Annullata il</th>
+            <th>Motivo</th>
+            <th>Azioni</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for appt in appointments %}
+          <tr>
+            <td class="nowrap">{{ appt.slot.time|time:'H:i' }}</td>
+            <td><span class="donor-name">{{ appt.donor }}</span></td>
+            <td class="nowrap">{{ appt.donor.phone|default:'—' }}</td>
+            <td class="status-cell"><span class="pill status-{{ appt.status|lower }}">{{ appt.get_status_display }}</span></td>
+            <td class="nowrap">{{ appt.created_at|date:'d/m/Y H:i' }}</td>
+            <td class="nowrap">{% if appt.cancelled_at %}{{ appt.cancelled_at|date:'d/m/Y H:i' }}{% else %}—{% endif %}</td>
+            <td>{{ appt.cancellation_reason|default:'—' }}</td>
+            <td class="actions-cell">
+              <div class="history-actions">
+                <form method="post" action="{% url 'management_confirm_appointment' appt.pk %}">{% csrf_token %}<button class="btn btn-small" type="submit">Conferma</button></form>
+                <form method="post" action="{% url 'management_send_appointment_email' appt.pk %}">{% csrf_token %}<button class="btn btn-small btn-outline" type="submit">Email</button></form>
+                <form method="post" action="{% url 'management_cancel_appointment' appt.pk %}" onsubmit="return confirm('Annullare questa prenotazione?');">{% csrf_token %}<input type="hidden" name="reason" value="Annullamento da storico admin"><button class="btn btn-small btn-soft-danger" type="submit">Annulla</button></form>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8">Nessuna prenotazione registrata.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+{% endblock %}

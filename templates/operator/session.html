@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block title %}Console raccolta · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Console di giornata</p>
+    <h1>{{ session.center.name }} · {{ session.date|date:'d/m/Y' }}</h1>
+    <p class="muted">{{ session.center.city }} · {{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }} · {{ session.get_donation_type_display }}</p>
+  </div>
+  {% if user_is_admin %}
+  <div class="actions">
+    <a class="btn btn-outline" href="{% url 'management_appointments' session.pk %}">Gestisci prenotazioni</a>
+    <a class="btn btn-outline" href="{% url 'management_print_appointments' session.pk %}">Stampa elenco</a>
+  </div>
+  {% endif %}
+</div>
+
+{# --- KPI della giornata --- #}
+<div class="stats">
+  <div class="stat"><strong>{{ stats.booked }}</strong><span>Prenotati</span></div>
+  <div class="stat stat-success"><strong>{{ stats.checked_in }}</strong><span>Check-in</span></div>
+  <div class="stat {% if stats.risk %}stat-danger{% endif %}"><strong>{{ stats.risk }}</strong><span>Critici</span></div>
+  <div class="stat"><strong>{{ stats.standby }}</strong><span>Standby</span></div>
+  <div class="stat"><strong>{{ stats.offers }}</strong><span>Offerte</span></div>
+  <div class="stat stat-success"><strong>{{ stats.accepted }}</strong><span>Accettate</span></div>
+  <div class="stat {% if stats.no_show %}stat-danger{% endif %}"><strong>{{ stats.no_show }}</strong><span>No-show</span></div>
+</div>
+
+{# --- Slot con azioni: check-in in evidenza, il resto nel menu compatto --- #}
+<section class="card">
+  <div class="card-head">
+    <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg></span>
+    <div><h2>Slot e azioni operative</h2><p class="muted">Check-in con un click; le altre azioni sono nel menu di ogni riga.</p></div>
+  </div>
+  <div class="table-wrap">
+    <table class="table-stack">
+      <thead><tr><th>Ora</th><th>Arrivo</th><th>Donatore</th><th>Stato slot</th><th>Prenotazione</th><th>Azioni</th></tr></thead>
+      <tbody>
+      {% for slot in slots %}
+        {% with appt=slot.active_appointment %}
+        <tr>
+          <td data-label="Ora"><strong>{{ slot.time|time:'H:i' }}</strong></td>
+          <td data-label="Arrivo">{{ slot.expected_arrival_time|time:'H:i' }}</td>
+          <td data-label="Donatore">{% if slot.donor %}{{ slot.donor }}{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td data-label="Slot"><span class="pill status-{{ slot.status|lower }}">{{ slot.get_status_display }}</span></td>
+          <td data-label="Prenotazione">{% if appt %}<span class="pill status-{{ appt.status|lower }}">{{ appt.get_status_display }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td class="actions-cell" data-label="Azioni">
+            {% if appt and appt.is_active %}
+              {# Il check-in diventa un badge dopo l'arrivo, così si evitano doppie registrazioni #}
+              {% if appt.is_checked_in %}
+                <span class="pill status-completed">✓ Arrivato</span>
+              {% else %}
+                <form class="inline" method="post" action="{% url 'operator_checkin' appt.pk %}">{% csrf_token %}<button class="btn btn-small" type="submit">Check-in</button></form>
+              {% endif %}
+              <div class="row-menu" x-data="{ open: false }" @click.outside="open = false">
+                <button class="btn btn-small btn-outline" type="button" @click="open = !open" :aria-expanded="open.toString()">Altro ▾</button>
+                <div class="row-menu-panel" x-cloak x-show="open" x-transition.origin.top.right>
+                  <form method="post" action="{% url 'operator_complete' appt.pk %}">{% csrf_token %}<button type="submit">✔ Donazione effettuata</button></form>
+                  <form method="post" action="{% url 'operator_not_done' appt.pk %}">{% csrf_token %}<button type="submit">Donazione non effettuata</button></form>
+                  {% if not appt.is_checked_in %}
+                  <hr>
+                  <form method="post" action="{% url 'operator_mark_risk' slot.pk %}">{% csrf_token %}<button class="menu-warning" type="submit">⚠ Segna ritardo critico</button></form>
+                  <form method="post" action="{% url 'operator_activate_standby' slot.pk %}">{% csrf_token %}<button class="menu-warning" type="submit">Attiva standby</button></form>
+                  <hr>
+                  <form method="post" action="{% url 'operator_no_show' appt.pk %}" onsubmit="return confirm('Registrare il no-show? Il donatore riceverà una penalità di affidabilità.');">{% csrf_token %}<button class="menu-danger" type="submit">✕ No-show</button></form>
+                  {% endif %}
+                </div>
+              </div>
+            {% elif appt %}
+              <span class="muted">Chiusa</span>
+            {% else %}
+              <span class="muted">Slot libero</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div class="grid two">
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h7"/></svg></span>
+      <div><h2>Lista d’attesa</h2></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pos.</th><th>Donatore</th><th>ETA</th><th>Stato</th><th>Affidabilità</th></tr></thead>
+        <tbody>
+        {% for entry in waitlist %}
+          <tr><td><strong>#{{ entry.position }}</strong></td><td>{{ entry.donor }}</td><td>{{ entry.max_arrival_minutes }} min</td><td><span class="pill status-{{ entry.status|lower }}">{{ entry.get_status_display }}</span></td><td>{{ entry.donor.reliability_score }}</td></tr>
+        {% empty %}<tr><td colspan="5"><div class="list-empty">Nessun donatore in lista.</div></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <span class="icon-chip chip-amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg></span>
+      <div><h2>Standby confermati</h2></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Donatore</th><th>Fascia</th><th>ETA</th><th>Stato</th></tr></thead>
+        <tbody>
+        {% for item in standby %}
+          <tr><td>{{ item.donor }}</td><td>{{ item.available_from|time:'H:i' }}–{{ item.available_to|time:'H:i' }}</td><td>{{ item.max_arrival_minutes }} min</td><td><span class="pill status-{{ item.status|lower }}">{{ item.get_status_display }}</span></td></tr>
+        {% empty %}<tr><td colspan="4"><div class="list-empty">Nessuno standby confermato.</div></td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+{# --- Offerte urgenti --- #}
+<section class="card">
+  <div class="card-head">
+    <span class="icon-chip chip-red" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z"/></svg></span>
+    <div><h2>Offerte urgenti</h2><p class="muted">Nella demo puoi simulare la risposta dei donatori e assegnare il sostituto.</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Slot</th><th>Donatore</th><th>ETA</th><th>Score</th><th>Risposta</th><th>Stato</th><th>Azioni</th></tr></thead>
+      <tbody>
+      {% for offer in offers %}
+        <tr>
+          <td><strong>{{ offer.slot.time|time:'H:i' }}</strong></td>
+          <td>{{ offer.donor }}</td>
+          <td>{{ offer.estimated_arrival_minutes }} min</td>
+          <td>{{ offer.score }}</td>
+          <td>{{ offer.get_response_display }}</td>
+          <td><span class="pill status-{{ offer.status|lower }}">{{ offer.get_status_display }}</span></td>
+          <td class="actions-cell">
+            {% if offer.is_expired %}
+              <span class="pill status-lost">Scaduta</span>
+            {% elif offer.status == 'SENT' %}
+              <form class="inline" method="post" action="{% url 'operator_simulate_offer_response' offer.pk 'ACCEPT' %}">{% csrf_token %}<button class="btn btn-small" type="submit">Simula sì</button></form>
+              <form class="inline" method="post" action="{% url 'operator_simulate_offer_response' offer.pk 'DECLINE' %}">{% csrf_token %}<button class="btn btn-small btn-soft" type="submit">Simula no</button></form>
+            {% elif offer.status == 'ACCEPTED' %}
+              <form class="inline" method="post" action="{% url 'operator_assign_offer' offer.pk %}" onsubmit="return confirm('Assegnare definitivamente lo slot a questo donatore?');">{% csrf_token %}<button class="btn btn-small btn-warning" type="submit">Assegna slot</button></form>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </td>
+        </tr>
+      {% empty %}<tr><td colspan="7"><div class="list-empty">Nessuna offerta inviata.</div></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Elenco stampabile · DonoFlow{% endblock %}
+{% block content %}
+<div class="print-toolbar no-print">
+  <a class="btn btn-outline" href="{% url 'management_appointments' session.pk %}">Torna alla gestione</a>
+  <button class="btn" onclick="window.print()">Stampa elenco cartaceo</button>
+</div>
+
+<section class="print-page">
+  <div class="print-header">
+    <div>
+      <h1>Elenco prenotazioni raccolta sangue</h1>
+      <p><strong>{{ session.title|default:'Raccolta sangue' }}</strong></p>
+      <p>{{ session.center.name }} · {{ session.center.address }} · {{ session.center.city }}</p>
+      <p>Data: {{ session.date|date:'d/m/Y' }} · Orario: {{ session.start_time|time:'H:i' }} - {{ session.end_time|time:'H:i' }}</p>
+    </div>
+    {% if session.featured_image %}<img class="print-logo" src="{{ session.featured_image.url }}" alt="{{ session.title|default:'Raccolta sangue' }}">{% endif %}
+  </div>
+
+  {% if session.public_instructions %}
+  <div class="print-notes">
+    <strong>Indicazioni:</strong> {{ session.public_instructions|linebreaksbr }}
+  </div>
+  {% endif %}
+
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th>Ora</th><th>Arrivo</th><th>Donatore</th><th>Telefono</th><th>Stato</th><th>Firma/Note</th><th>Check-in</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for slot in slots %}
+        {% with appt=slot.active_appointment %}
+        <tr>
+          <td>{{ slot.time|time:'H:i' }}</td>
+          <td>{{ slot.expected_arrival_time|time:'H:i' }}</td>
+          <td>{% if appt %}{{ appt.donor }}{% else %}—{% endif %}</td>
+          <td>{% if appt %}{{ appt.donor.phone|default:'—' }}{% else %}—{% endif %}</td>
+          <td>{% if appt %}{{ appt.get_status_display }}{% else %}Libero{% endif %}</td>
+          <td class="signature-cell"></td>
+          <td class="checkbox-cell">□</td>
+        </tr>
+        {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="print-footer">
+    <p>Totale slot: {{ session.slots_count }} · Stampato il {% now "d/m/Y H:i" %}</p>
+  </div>
+</section>
+{% endblock %}

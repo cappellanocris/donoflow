@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Pagina non trovata · DonoFlow{% endblock %}
+{% block content %}
+<div class="narrow card" style="text-align:center">
+  <div class="empty-state-icon" style="margin:0 auto 1rem" aria-hidden="true">?</div>
+  <p class="eyebrow">Errore 404</p>
+  <h1>Pagina non trovata</h1>
+  <p class="muted">La pagina che cerchi non esiste, è stata spostata oppure la raccolta non è ancora pubblicata.</p>
+  <div class="actions" style="justify-content:center;margin-top:1.25rem">
+    <a class="btn" href="{% url 'home' %}">Torna alla home</a>
+    <a class="btn btn-outline" href="{% url 'sessions_list' %}">Vedi le raccolte</a>
+  </div>
+</div>
+{% endblock %}

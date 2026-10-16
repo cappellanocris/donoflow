@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+
+# Django: database locale e file caricati dagli utenti
+db.sqlite3
+db.sqlite3-journal
+media/
+
+# Test nel browser
+screenshots/
+
+# Ambiente / editor
+.env
+.idea/
+.vscode/
+.DS_Store

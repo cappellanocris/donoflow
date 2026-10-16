@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block title %}Gestione pagine · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Backend contenuti</p>
+    <h1>Gestione pagine</h1>
+    <p class="muted">Crea e modifica le pagine informative pubbliche della web app.</p>
+  </div>
+  <a class="btn" href="{% url 'management_page_create' %}">Nuova pagina</a>
+</div>
+<div class="card table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Ordine</th>
+        <th>Titolo</th>
+        <th>URL</th>
+        <th>Visibilità</th>
+        <th>Menu</th>
+        <th>Footer</th>
+        <th>Aggiornata</th>
+        <th>Azioni</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for page in pages %}
+      <tr>
+        <td>{{ page.sort_order }}</td>
+        <td><strong>{{ page.title }}</strong>{% if page.summary %}<br><span class="muted">{{ page.summary|truncatechars:80 }}</span>{% endif %}</td>
+        <td><code>/p/{{ page.slug }}/</code></td>
+        <td><span class="pill status-{% if page.is_published %}published{% else %}draft{% endif %}">{% if page.is_published %}Pubblicata{% else %}Nascosta{% endif %}</span></td>
+        <td>{% if page.show_in_navigation %}Sì{% else %}No{% endif %}</td>
+        <td>{% if page.show_in_footer %}Sì{% else %}No{% endif %}</td>
+        <td>{{ page.updated_at|date:'d/m/Y H:i' }}</td>
+        <td class="actions-cell">
+          <a class="btn btn-small btn-outline" href="{{ page.get_absolute_url }}">Apri</a>
+          <a class="btn btn-small" href="{% url 'management_page_update' page.pk %}">Modifica</a>
+          <form method="post" action="{% url 'management_page_toggle' page.pk %}" class="inline">{% csrf_token %}
+            <button class="btn btn-small btn-warning" type="submit">{% if page.is_published %}Nascondi{% else %}Pubblica{% endif %}</button>
+          </form>
+          <form method="post" action="{% url 'management_page_delete' page.pk %}" class="inline" onsubmit="return confirm('Eliminare definitivamente questa pagina?');">{% csrf_token %}
+            <button class="btn btn-small btn-danger" type="submit">Elimina</button>
+          </form>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">Nessuna pagina presente.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

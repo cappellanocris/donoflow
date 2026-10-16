@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Accesso · DonoFlow{% endblock %}
+{% block content %}
+<section class="auth-layout">
+  <div class="auth-visual">
+    <div class="auth-visual-content"><span class="auth-drop" aria-hidden="true"></span><p class="eyebrow">Bentornato</p><h1>Il prossimo gesto di solidarietà parte da qui.</h1><p>Accedi per controllare le tue prenotazioni, ricevere aggiornamenti e renderti disponibile in standby.</p></div>
+  </div>
+  <div class="auth-card card">
+    <div class="auth-card-heading"><p class="eyebrow">Area riservata</p><h2>Accedi a DonoFlow</h2><p class="muted">Inserisci le credenziali del tuo account.</p></div>
+    <form method="post" class="form auth-form">{% csrf_token %}{{ form.as_p }}<button class="btn btn-full" type="submit">Entra nel tuo account</button></form>
+    <div class="auth-footer"><span>Non hai ancora un account?</span><a href="{% url 'register' %}">Registrati ora</a></div>
+  </div>
+</section>
+{% endblock %}

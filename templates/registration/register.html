@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% block title %}Registrazione · DonoFlow{% endblock %}
+{% block content %}
+<section class="auth-layout auth-layout-register">
+  <div class="auth-visual"><div class="auth-visual-content"><span class="auth-drop" aria-hidden="true"></span><p class="eyebrow">Diventa donatore</p><h1>Un account semplice per un gesto straordinario.</h1><p>Registrati per scegliere le raccolte, gestire i tuoi appuntamenti e ricevere le comunicazioni importanti.</p></div></div>
+  <div class="auth-card card"><div class="auth-card-heading"><p class="eyebrow">Nuovo account</p><h2>Registrazione donatore</h2><p class="muted">Compila i campi richiesti. Potrai aggiornare i dati dalla tua area personale.</p></div><form method="post" class="form auth-form">{% csrf_token %}{{ form.as_p }}<button class="btn btn-full" type="submit">Crea il mio account</button></form><div class="auth-footer"><span>Hai già un account?</span><a href="{% url 'login' %}">Accedi</a></div></div>
+</section>
+{% endblock %}

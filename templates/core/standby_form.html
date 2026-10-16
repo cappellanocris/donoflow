@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Standby · DonoFlow{% endblock %}
+{% block content %}
+<div class="narrow card form-card">
+  <p class="eyebrow">Standby attivo</p>
+  <h1>Conferma la tua disponibilità</h1>
+  <p class="muted">Questa disponibilità non equivale a una convocazione: se uno slot si libera, il responsabile confermerà un solo sostituto tra i candidati compatibili.</p>
+
+  {# Riepilogo della raccolta scelta #}
+  <div class="form-session-box">
+    <span class="icon-chip chip-amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z"/></svg></span>
+    <div>
+      <strong>{{ session.title|default:'Raccolta sangue' }}</strong>
+      <small>{{ session.date|date:'l d F Y' }} · {{ session.center.name }}, {{ session.center.city }}</small>
+    </div>
+  </div>
+
+  <form method="post" class="form">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <div class="actions form-actions">
+      <button class="btn" type="submit">Conferma standby</button>
+      <a class="btn btn-outline" href="{{ session.get_absolute_url }}">Torna alla raccolta</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

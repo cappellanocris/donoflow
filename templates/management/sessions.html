@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Gestione raccolte · DonoFlow{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Area admin</p>
+    <h1>Giornate di raccolta</h1>
+    <p>Inserisci nuove date, modifica le informazioni pubbliche, genera gli slot e gestisci gli stati.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-outline" href="{% url 'management_centers' %}">Gestisci sedi</a>
+    <a class="btn" href="{% url 'management_session_create' %}">Nuova raccolta</a>
+  </div>
+</div>
+
+<section class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Immagine</th><th>Titolo / Sede</th><th>Configurazione</th><th>Slot</th><th>Stato</th><th>Azioni</th></tr>
+      </thead>
+      <tbody>
+        {% for session in sessions %}
+        <tr>
+          <td><strong>{{ session.date|date:'d/m/Y' }}</strong><br><span class="muted">{{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }}</span></td>
+          <td>{% if session.featured_image %}<img class="thumb" src="{{ session.featured_image.url }}" alt="{{ session.title|default:session.center.name }}">{% else %}<span class="muted">—</span>{% endif %}</td>
+          <td><strong>{{ session.title|default:'Raccolta sangue' }}</strong><br>{{ session.center.name }} · {{ session.center.city }}</td>
+          <td>
+            Capacità <strong>{{ session.capacity }}</strong> · pubblici {{ session.public_slots }} · riservati {{ session.reserved_slots }}<br>
+            <span class="muted">Slot da {{ session.slot_duration_minutes }} min · arrivo −{{ session.expected_arrival_minutes }} min</span>
+          </td>
+          <td><strong>{{ session.booked_slots }}</strong>/{{ session.total_slots }}<br><span class="muted">{{ session.free_slots }} liberi</span></td>
+          <td><span class="pill status-{{ session.status|lower }}">{{ session.get_status_display }}</span></td>
+          <td class="actions-cell">
+            <a class="btn btn-small" href="{% url 'management_appointments' session.pk %}">Prenotazioni</a>
+            <div class="row-menu" x-data="{ open: false }" @click.outside="open = false">
+              <button class="btn btn-small btn-outline" type="button" @click="open = !open" :aria-expanded="open.toString()">Altro ▾</button>
+              <div class="row-menu-panel" x-cloak x-show="open" x-transition.origin.top.right>
+                <a href="{% url 'management_session_update' session.pk %}">✎ Modifica raccolta</a>
+                <a href="{% url 'management_print_appointments' session.pk %}">Stampa elenco</a>
+                <hr>
+                <form method="post" action="{% url 'management_generate_slots' session.pk %}">{% csrf_token %}<button type="submit">Genera slot mancanti</button></form>
+                <form method="post" action="{% url 'management_generate_slots' session.pk %}" onsubmit="return confirm('Riallineare gli slot liberi/bloccati alla configurazione attuale? Gli slot con prenotazioni attive non saranno eliminati.');">
+                  {% csrf_token %}<input type="hidden" name="reset_free" value="1"><button class="menu-warning" type="submit">Ricalcola slot liberi</button>
+                </form>
+                <hr>
+                {% if session.status != 'OPEN' %}<form method="post" action="{% url 'management_set_session_status' session.pk 'OPEN' %}">{% csrf_token %}<button type="submit">Apri raccolta</button></form>{% endif %}
+                {% if session.status != 'CLOSED' %}<form method="post" action="{% url 'management_set_session_status' session.pk 'CLOSED' %}">{% csrf_token %}<button type="submit">Chiudi raccolta</button></form>{% endif %}
+                {% if session.status != 'CANCELLED' %}<form method="post" action="{% url 'management_set_session_status' session.pk 'CANCELLED' %}" onsubmit="return confirm('Annullare la giornata di raccolta?');">{% csrf_token %}<button class="menu-danger" type="submit">✕ Annulla raccolta</button></form>{% endif %}
+              </div>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7"><div class="list-empty">Nessuna giornata di raccolta presente. <a href="{% url 'management_session_create' %}">Creane una nuova</a>.</div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

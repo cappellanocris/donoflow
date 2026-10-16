@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% block title %}Raccolte disponibili · DonoFlow{% endblock %}
+{% block content %}
+<header class="page-header page-header-accent">
+  <div>
+    <p class="eyebrow">Calendario raccolte</p>
+    <h1>Trova la raccolta giusta per te</h1>
+    <p class="muted">Filtra per sede e periodo, poi scegli lo slot più comodo. I risultati si aggiornano senza ricaricare la pagina.</p>
+  </div>
+</header>
+
+<form method="get" class="card filter-card" aria-label="Filtra raccolte"
+      hx-get="{% url 'sessions_list' %}" hx-target="#sessions-results" hx-select="#sessions-results"
+      hx-swap="outerHTML show:top" hx-push-url="true" hx-trigger="change delay:250ms, submit">
+  <div class="filter-card-heading">
+    <span class="filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M7 12h10m-7 6h4"/></svg></span>
+    <div><strong>Filtra le raccolte</strong><small>Affina la ricerca in base alle tue esigenze</small></div>
+  </div>
+  <div class="filter-grid">
+    <div class="form-row">
+      <label for="filter-center">Sede</label>
+      <select id="filter-center" name="center">
+        <option value="">Tutte le sedi</option>
+        {% for center in centers %}<option value="{{ center.pk }}" {% if selected_center == center.pk|stringformat:'s' %}selected{% endif %}>{{ center.name }} · {{ center.city }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="filter-month">Mese</label>
+      <select id="filter-month" name="month">
+        <option value="">Tutti i mesi</option>
+        {% for month_number, month_name in months %}<option value="{{ month_number }}" {% if selected_month == month_number|stringformat:'s' %}selected{% endif %}>{{ month_name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="filter-year">Anno</label>
+      <select id="filter-year" name="year">
+        <option value="">Tutti gli anni</option>
+        {% for year in years %}<option value="{{ year }}" {% if selected_year == year|stringformat:'s' %}selected{% endif %}>{{ year }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn" type="submit">Applica</button>
+      <a class="btn btn-outline" href="{% url 'sessions_list' %}">Azzera</a>
+    </div>
+  </div>
+</form>
+
+<section id="sessions-results" class="sessions-results" aria-live="polite">
+  <div class="results-toolbar">
+    <p class="results-summary"><strong>{{ sessions|length }}</strong> {% if sessions|length == 1 %}raccolta trovata{% else %}raccolte trovate{% endif %}</p>
+    <span class="results-hint">Disponibilità aggiornata</span>
+  </div>
+
+  <div class="grid cards session-card-grid">
+    {% for session in sessions %}
+      <article class="card session-card">
+        <div class="session-media">
+          {% if session.featured_image %}<img class="session-cover" src="{{ session.featured_image.url }}" alt="{{ session.title|default:'Raccolta sangue' }}">{% else %}<div class="session-cover-placeholder" aria-hidden="true"><span></span></div>{% endif %}
+          <span class="session-date-badge"><strong>{{ session.date|date:'d' }}</strong><small>{{ session.date|date:'M' }}</small></span>
+        </div>
+        <div class="session-card-body">
+          <div class="session-card-topline"><span class="pill status-{{ session.status|lower }}">{{ session.get_status_display }}</span><span class="slots-counter"><strong>{{ session.available_count }}</strong>/{{ session.slots_count }} liberi</span></div>
+          <h2>{{ session.title|default:'Raccolta sangue' }}</h2>
+          <div class="session-meta">
+            <p><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9.69 18.933 9.4 18.7C4.9 15.1 2 12.1 2 8.5a8 8 0 1 1 16 0c0 3.6-2.9 6.6-7.4 10.2l-.29.233a.5.5 0 0 1-.62 0ZM10 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" clip-rule="evenodd"/></svg><span><strong>{{ session.center.name }}</strong><small>{{ session.center.address }} · {{ session.center.city }}</small></span></p>
+            <p><svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-12a.75.75 0 0 0-1.5 0v4c0 .23.106.448.287.59l2.5 2a.75.75 0 1 0 .926-1.18l-2.213-1.77V6Z" clip-rule="evenodd"/></svg><span>{{ session.start_time|time:'H:i' }}–{{ session.end_time|time:'H:i' }}</span></p>
+          </div>
+          {% if session.public_description %}<p class="session-excerpt">{{ session.public_description|truncatechars:125 }}</p>{% endif %}
+          <div class="session-card-footer"><span class="availability-label {% if session.available_count %}is-available{% endif %}"><i></i>{% if session.available_count %}Posti disponibili{% else %}Lista completa{% endif %}</span><a class="btn btn-small" href="{% url 'session_detail' session.pk %}">Scegli orario <span>→</span></a></div>
+        </div>
+      </article>
+    {% empty %}
+      <div class="card empty-state">
+        <div class="empty-state-icon">⌕</div>
+        <h2>Nessuna raccolta trovata</h2>
+        <p>Prova a modificare i filtri oppure consulta nuovamente il calendario nei prossimi giorni.</p>
+        <a class="btn btn-outline" href="{% url 'sessions_list' %}">Mostra tutte le raccolte</a>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

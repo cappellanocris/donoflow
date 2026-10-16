@@ -3,6 +3,25 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def load_env_file(path):
+    """Carica le variabili da un file .env (KEY=valore) senza sovrascrivere quelle già esportate."""
+    if not path.is_file():
+        return
+    for raw in path.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, value = line.removeprefix('export ').split('=', 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in '\'"':
+            value = value[1:-1]
+        os.environ.setdefault(key.strip(), value)
+
+
+# Configurazione locale (SMTP, chiavi...) in .env: vedi .env.example. Non va su git.
+load_env_file(BASE_DIR / '.env')
+
 # Sicurezza: in locale valgono i default; in produzione impostare le variabili
 # d'ambiente DJANGO_SECRET_KEY, DJANGO_DEBUG=0 e DJANGO_ALLOWED_HOSTS.
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'dev-only-donoflow-change-me')
@@ -93,3 +112,6 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '0') == '1'
 EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', '0') == '1'
 EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
+
+# Indirizzo pubblico del sito, usato per i link nelle email (es. https://donoflow.it).
+DONOFLOW_SITE_URL = os.environ.get('DONOFLOW_SITE_URL', 'http://127.0.0.1:8000').rstrip('/')

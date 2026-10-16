@@ -1,6 +1,7 @@
 from datetime import date, time, timedelta
 
 from django.conf import settings
+from django.test.utils import override_settings
 from django.contrib.auth.models import User, Group
 from django.core.management.base import BaseCommand
 from django.utils import timezone
@@ -41,6 +42,12 @@ class Command(BaseCommand):
         parser.add_argument('--reset', action='store_true', help='Cancella i dati demo prima di ricrearli')
 
     def handle(self, *args, **options):
+        # I donatori demo hanno indirizzi finti: anche con SMTP reale configurato le
+        # email generate dalle prenotazioni demo non vanno spedite.
+        with override_settings(EMAIL_BACKEND='django.core.mail.backends.dummy.EmailBackend'):
+            self.create_demo(options)
+
+    def create_demo(self, options):
         if options['reset']:
             self.stdout.write('Reset dati demo...')
             # Ordine esplicito per evitare vincoli PROTECT durante la cancellazione.

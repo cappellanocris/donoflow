@@ -588,10 +588,13 @@ def management_send_appointment_email(request, appointment_id):
     """Invio manuale dell'email di riepilogo stato prenotazione."""
     appointment = get_object_or_404(Appointment.objects.select_related('slot__session', 'donor'), pk=appointment_id)
     if request.method == 'POST':
-        if send_appointment_status_email(appointment, user=request.user):
+        status = send_appointment_status_email(appointment, user=request.user)
+        if status == 'SENT':
             messages.success(request, f'Email riepilogo inviata a {appointment.donor.email}.')
+        elif status == 'SIMULATED':
+            messages.warning(request, 'Email solo simulata: nessun server SMTP configurato, il messaggio è stato scritto nel terminale del server. Configura l’SMTP nel file .env (vedi README).')
         else:
-            messages.error(request, 'Email non inviata: controlla indirizzo utente o configurazione SMTP. Lo stato è stato salvato nello storico email.')
+            messages.error(request, 'Email non inviata: controlla l’indirizzo del donatore o la configurazione SMTP. L’errore è salvato nello storico email.')
     return redirect('management_appointments', pk=appointment.slot.session_id)
 
 

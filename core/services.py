@@ -5,12 +5,14 @@ funzioni, che si occupano di transizioni di stato, notifiche, email e audit log.
 Convenzione: le funzioni che toccano più record sono avvolte in una transazione.
 """
 
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import get_connection, send_mail
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
@@ -25,6 +27,8 @@ from .models import (
     WaitlistEntry,
     WaitlistOffer,
 )
+
+logger = logging.getLogger(__name__)
 
 # Alias locali per leggibilità: la fonte di verità è il modello Appointment.
 ACTIVE_APPOINTMENT_STATUSES = Appointment.ACTIVE_STATUSES
@@ -73,12 +77,54 @@ def create_notification(donor=None, appointment=None, channel='DASHBOARD', templ
     )
 
 
-def send_informative_email(donor, subject, body, appointment=None, template='EMAIL_INFO'):
-    """Invia una mail informativa e registra sempre l'esito nel database.
+# Backend che non consegnano davvero il messaggio: l'email viene registrata come "Simulata".
+SIMULATED_EMAIL_BACKENDS = (
+    'django.core.mail.backends.console.EmailBackend',
+    'django.core.mail.backends.locmem.EmailBackend',
+    'django.core.mail.backends.dummy.EmailBackend',
+    'django.core.mail.backends.filebased.EmailBackend',
+)
 
-    In locale il backend predefinito è la console: l'email appare nel terminale di
-    `runserver` e viene comunque salvata nello storico email dell'area personale.
-    Con SMTP configurato tramite variabili d'ambiente viene inviata realmente.
+
+def email_delivery_is_simulated(backend=None):
+    return (backend or settings.EMAIL_BACKEND) in SIMULATED_EMAIL_BACKENDS
+
+
+def _deliver_email(notification_id, recipient, subject, body, backend):
+    """Spedisce l'email e aggiorna la notifica con l'esito (Inviata / Simulata / Fallita)."""
+    record = f'A: {recipient}\nOggetto: {subject}\n\n{body}'
+    try:
+        sent_count = send_mail(
+            subject=subject,
+            message=body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient],
+            fail_silently=False,
+            connection=get_connection(backend),
+        )
+    except Exception as exc:  # SMTP non raggiungibile, credenziali errate, ecc.
+        logger.warning('Invio email a %s fallito: %s', recipient, exc)
+        status, message = 'FAILED', f'Errore invio email: {exc}\n{record}'
+    else:
+        if not sent_count:
+            status = 'FAILED'
+        else:
+            status = 'SIMULATED' if email_delivery_is_simulated(backend) else 'SENT'
+        message = record
+    Notification.objects.filter(pk=notification_id).update(status=status, message=message, sent_at=timezone.now())
+    return status
+
+
+def send_informative_email(donor, subject, body, appointment=None, template='EMAIL_INFO', defer=True):
+    """Invia una mail informativa e registra sempre l'esito nello storico email del donatore.
+
+    Senza SMTP configurato (backend console, predefinito in locale) l'email appare nel
+    terminale di `runserver` e viene registrata come "Simulata". Con SMTP configurato in
+    .env viene spedita davvero. Dentro una transazione l'invio avviene solo dopo il
+    commit, così un SMTP lento non tiene bloccato il database e un'operazione annullata
+    non manda email. Con ``defer=False`` l'invio è immediato (per mostrare subito l'esito).
+
+    Restituisce lo stato: 'SENT', 'SIMULATED', 'FAILED' oppure 'QUEUED' (invio dopo il commit).
     """
     recipient = ''
     if donor:
@@ -95,36 +141,45 @@ def send_informative_email(donor, subject, body, appointment=None, template='EMA
             message=f'Email non inviata: indirizzo mancante.\n\nOggetto: {subject}\n\n{body}',
             status='FAILED',
         )
-        return False
+        return 'FAILED'
 
-    try:
-        sent_count = send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'donoflow@localhost'),
-            recipient_list=[recipient],
-            fail_silently=False,
-        )
-        status = 'SENT' if sent_count else 'FAILED'
-        create_notification(
-            donor=donor,
-            appointment=appointment,
-            channel='EMAIL',
-            template=template,
-            message=f'A: {recipient}\nOggetto: {subject}\n\n{body}',
-            status=status,
-        )
-        return bool(sent_count)
-    except Exception as exc:  # pragma: no cover - utile per SMTP reali configurati male
-        create_notification(
-            donor=donor,
-            appointment=appointment,
-            channel='EMAIL',
-            template=template,
-            message=f'Errore invio email: {exc}\nA: {recipient}\nOggetto: {subject}\n\n{body}',
-            status='FAILED',
-        )
-        return False
+    notification = create_notification(
+        donor=donor,
+        appointment=appointment,
+        channel='EMAIL',
+        template=template,
+        message=f'A: {recipient}\nOggetto: {subject}\n\n{body}',
+        status='QUEUED',
+    )
+    # Il backend si fissa ora: l'invio differito usa la configurazione attiva al momento della richiesta.
+    backend = settings.EMAIL_BACKEND
+    if defer and transaction.get_connection().in_atomic_block:
+        transaction.on_commit(lambda: _deliver_email(notification.pk, recipient, subject, body, backend))
+        return 'QUEUED'
+    return _deliver_email(notification.pk, recipient, subject, body, backend)
+
+
+def site_link(url_name, *args):
+    return settings.DONOFLOW_SITE_URL + reverse(url_name, args=args)
+
+
+def donor_email_body(donor, text):
+    return (
+        f'Ciao {donor.first_name},\n\n'
+        f'{text}\n\n'
+        f'Gestisci le tue prenotazioni: {site_link("dashboard")}\n\n'
+        f'Questa è una comunicazione informativa generata da DonoFlow.\n'
+    )
+
+
+def notify_donor(donor, template, message, email_subject=None, channel=None):
+    """Notifica al donatore sul canale preferito e, se indicato l'oggetto, la stessa comunicazione via email."""
+    channel = channel or donor.preferred_channel
+    # Se il canale preferito è l'email, la notifica è l'email stessa: niente doppione simulato.
+    if not (email_subject and channel == 'EMAIL'):
+        create_notification(donor=donor, channel=channel, template=template, message=message)
+    if email_subject:
+        send_informative_email(donor, email_subject, donor_email_body(donor, message), template=f'EMAIL_{template}')
 
 
 def appointment_email_body(appointment, intro):
@@ -140,6 +195,7 @@ def appointment_email_body(appointment, intro):
         f'- Indirizzo: {session.center.address or "non indicato"}\n'
         f'- Orario prenotazione: {slot.time:%H:%M}\n'
         f'- Arrivo richiesto entro: {slot.expected_arrival_time:%H:%M}\n\n'
+        f'Gestisci le tue prenotazioni: {site_link("dashboard")}\n\n'
         f'Questa è una comunicazione informativa generata da DonoFlow.\n'
     )
 
@@ -151,14 +207,17 @@ def notify_appointment(appointment, template, message, email_subject=None, email
     Centralizza il pattern notifica+email ripetuto in tutte le transizioni di stato.
     """
     donor = appointment.donor
-    create_notification(
-        donor=donor,
-        appointment=appointment,
-        channel=donor.preferred_channel,
-        template=template,
-        message=message,
-    )
-    if email_subject and email_intro:
+    sends_email = bool(email_subject and email_intro)
+    # Se il canale preferito è l'email, la notifica è l'email stessa: niente doppione simulato.
+    if not (sends_email and donor.preferred_channel == 'EMAIL'):
+        create_notification(
+            donor=donor,
+            appointment=appointment,
+            channel=donor.preferred_channel,
+            template=template,
+            message=message,
+        )
+    if sends_email:
         send_informative_email(
             donor,
             email_subject,
@@ -358,11 +417,11 @@ def create_waitlist_entry(session, donor, **kwargs):
             setattr(entry, key, value)
         entry.status = 'ACTIVE'
         entry.save()
-    create_notification(
-        donor=donor,
-        channel=donor.preferred_channel,
+    notify_donor(
+        donor,
         template='LISTA_ATTESA',
-        message=f'Sei stato inserito in lista d’attesa per la raccolta del {session.date:%d/%m/%Y}.',
+        message=f'Sei stato inserito in lista d’attesa per la raccolta del {session.date:%d/%m/%Y} presso {session.center.name}. Ti avviseremo se si libera un posto.',
+        email_subject='DonoFlow - Iscrizione in lista d’attesa',
     )
     return entry
 
@@ -381,11 +440,12 @@ def confirm_standby(session, donor, **kwargs):
         },
     )
     WaitlistEntry.objects.filter(donor=donor, session=session).update(status='STANDBY_CONFIRMED')
-    create_notification(
-        donor=donor,
-        channel=standby.preferred_channel,
+    notify_donor(
+        donor,
         template='STANDBY_CONFERMATO',
-        message=f'Disponibilità standby confermata per il {session.date:%d/%m/%Y} dalle {standby.available_from:%H:%M} alle {standby.available_to:%H:%M}.',
+        message=f'Disponibilità standby confermata per il {session.date:%d/%m/%Y} presso {session.center.name}, dalle {standby.available_from:%H:%M} alle {standby.available_to:%H:%M}.',
+        email_subject='DonoFlow - Disponibilità standby confermata',
+        channel=standby.preferred_channel,
     )
     return standby
 
@@ -501,11 +561,14 @@ def activate_standby_for_slot(slot, user=None, limit=3, timeout_minutes=3):
             },
         )
         WaitlistEntry.objects.filter(donor=item['donor'], session=slot.session).update(status='OFFER_SENT')
-        create_notification(
-            donor=item['donor'],
-            channel=item['donor'].preferred_channel,
+        notify_donor(
+            item['donor'],
             template='OFFERTA_URGENTE',
-            message=f'Si potrebbe liberare un posto alle {slot.time:%H:%M} presso {slot.session.center.name}. Puoi arrivare entro {item["eta"]} minuti?',
+            message=(
+                f'Si potrebbe liberare un posto alle {slot.time:%H:%M} presso {slot.session.center.name}. '
+                f'Puoi arrivare entro {item["eta"]} minuti? Rispondi entro {timeout_minutes} minuti dalla tua dashboard.'
+            ),
+            email_subject=f'DonoFlow - Posto disponibile alle {slot.time:%H:%M}: rispondi subito',
         )
         offers.append(offer)
     log_action(user, 'Attivazione standby', slot, notes=f'Offerte create: {len(offers)}')
@@ -578,11 +641,11 @@ def assign_standby_offer(offer, user=None):
     others = list(slot.offers.exclude(pk=offer.pk).filter(status__in=['SENT', 'ACCEPTED']).select_related('donor'))
     slot.offers.filter(pk__in=[o.pk for o in others]).update(status='CANCELLED')
     for other in others:
-        create_notification(
-            donor=other.donor,
-            channel=other.donor.preferred_channel,
+        notify_donor(
+            other.donor,
             template='POSTO_ASSEGNATO_ALTRO',
             message='Grazie per la disponibilità. Il posto è stato assegnato a un altro donatore. Resti in standby per eventuali altri posti.',
+            email_subject='DonoFlow - Posto assegnato a un altro donatore',
         )
     notify_appointment(
         appointment,
@@ -606,8 +669,9 @@ def send_appointment_status_email(appointment, user=None):
         ),
         appointment=appointment,
         template='EMAIL_RIEPILOGO_PRENOTAZIONE',
+        defer=False,
     )
-    log_action(user, 'Invio email riepilogo prenotazione', appointment, notes='Inviata' if sent else 'Fallita')
+    log_action(user, 'Invio email riepilogo prenotazione', appointment, notes=dict(Notification.STATUS_CHOICES).get(sent, sent))
     return sent
 
 

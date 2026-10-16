@@ -2,7 +2,7 @@
 
 Prima versione locale della web app **DonoFlow**, pensata per gestire raccolte sangue con autoemoteca, prenotazioni online, lista d’attesa, standby attivo, check-in, recupero degli slot a rischio e gestione operativa delle giornate di raccolta.
 
-Questa versione è un **MVP dimostrativo locale**: usa SQLite, template Django e notifiche simulate salvate nel database. Non invia SMS, WhatsApp o email reali.
+Questa versione è un **MVP dimostrativo locale**: usa SQLite, template Django e notifiche simulate salvate nel database. SMS e WhatsApp sono simulati; le email vengono spedite davvero solo dopo aver configurato un server SMTP (vedi [Email informative](#email-informative)).
 
 ## Funzioni incluse
 
@@ -110,39 +110,40 @@ Dalla sezione raccolte puoi:
 
 ## Email informative
 
-La versione locale usa di default il backend console:
+**Di default le email non vengono spedite**: il backend predefinito è la console, quindi il messaggio viene stampato nel terminale di `python manage.py runserver` e registrato con stato **Simulata** nello storico email dell'area personale del donatore.
 
-```python
-DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
-```
+### Attivare l'invio reale
 
-Quindi l’email viene stampata nel terminale dove è avviato `python manage.py runserver` e viene salvata anche nello **storico email** dell’area personale del donatore.
-
-Le email vengono generate per questi eventi:
-
-- prenotazione confermata;
-- prenotazione annullata dal donatore;
-- prenotazione confermata dall’operatore/admin;
-- prenotazione annullata dall’operatore/admin;
-- posto confermato last-minute da standby;
-- no-show registrato;
-- donazione registrata come effettuata;
-- donazione registrata come non effettuata.
-
-Per inviare email reali puoi configurare un SMTP tramite variabili d’ambiente, senza modificare il codice. Esempio:
+1. Copia il modello di configurazione: `cp .env.example .env`
+2. Compila in `.env` i dati del tuo server SMTP. Il file viene letto automaticamente all'avvio ed è escluso da git. Con Gmail serve una [password per le app](https://myaccount.google.com/apppasswords), non la password dell'account.
+3. Riavvia `runserver` e prova la configurazione:
 
 ```bash
-export DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-export DEFAULT_FROM_EMAIL='DonoFlow <noreply@tuodominio.it>'
-export EMAIL_HOST=smtp.tuodominio.it
-export EMAIL_PORT=587
-export EMAIL_HOST_USER=noreply@tuodominio.it
-export EMAIL_HOST_PASSWORD='password-o-app-password'
-export EMAIL_USE_TLS=1
-python manage.py runserver
+python manage.py sendtestemail tuoindirizzo@example.com
 ```
 
-Se l’SMTP non è configurato, il sistema non perde il messaggio: crea una notifica email con stato `Fallita` o `Inviata` consultabile dall’area personale.
+In alternativa al file `.env` puoi esportare le stesse variabili nel terminale; quelle esportate hanno la precedenza.
+
+### Quando parte un'email
+
+Al donatore arriva un'email per ognuno di questi eventi:
+
+- prenotazione confermata o annullata (dal donatore o dall'operatore);
+- iscrizione in lista d'attesa;
+- disponibilità standby confermata;
+- offerta urgente di un posto liberato (standby);
+- posto confermato last-minute, oppure assegnato a un altro donatore;
+- no-show registrato;
+- donazione effettuata / non effettuata;
+- riepilogo inviato a mano dalla tabella prenotazioni.
+
+### Esito e storico
+
+Ogni email viene registrata nello storico con uno di questi stati: **Inviata** (accettata dal server SMTP), **Simulata** (nessun SMTP configurato), **Fallita** (indirizzo mancante o errore SMTP, con il messaggio d'errore) oppure **In coda** per un istante, prima della consegna.
+
+Le email partono solo dopo che l'operazione è stata salvata: un SMTP lento non blocca il database e un'operazione annullata per errore non manda comunicazioni. Se l'SMTP non risponde, la prenotazione resta comunque valida.
+
+`seed_demo` non spedisce mai email, nemmeno con l'SMTP configurato, perché i donatori demo hanno indirizzi finti.
 
 ## Scenario di test consigliato
 
